@@ -1,0 +1,14 @@
+2025/03/19-19:16:02.824 21fc Reusing MANIFEST C:\Users\wook\AppData\Roaming\Opera Software\Opera Stable\Default\IndexedDB\chrome-extension_igpdmclhhlcpoindmhkhillbfhdgoegm_0.indexeddb.leveldb/MANIFEST-000001
+2025/03/19-19:16:02.824 21fc Recovering log #21
+2025/03/19-19:16:02.825 21fc Reusing old log C:\Users\wook\AppData\Roaming\Opera Software\Opera Stable\Default\IndexedDB\chrome-extension_igpdmclhhlcpoindmhkhillbfhdgoegm_0.indexeddb.leveldb/000021.log 
+2025/03/19-19:16:02.825 21fc Delete type=2 #19
+2025/03/19-19:16:02.831 18fc Level-0 table #26: started
+2025/03/19-19:16:02.839 18fc Level-0 table #26: 696 bytes OK
+2025/03/19-19:16:02.840 18fc Delete type=0 #21
+2025/03/19-19:16:02.840 21fc Manual compaction at level-0 from '\x00\x0a\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x0b\x00\x00\x00' @ 0 : 0; will stop at '\x00\x0a\x00\x00\x05' @ 541 : 1
+2025/03/19-19:16:02.840 21fc Compacting 1@0 + 1@1 files
+2025/03/19-19:16:02.842 21fc Generated table #27@0: 171 keys, 4342 bytes
+2025/03/19-19:16:02.842 21fc Compacted 1@0 + 1@1 files => 4342 bytes
+2025/03/19-19:16:02.842 21fc compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/03/19-19:16:02.843 21fc Delete type=2 #26
+2025/03/19-19:16:02.843 21fc Manual compaction at level-0 from '\x00\x0a\x00\x00\x05' @ 541 : 1 .. '\x00\x0b\x00\x00\x00' @ 0 : 0; will stop at (end)

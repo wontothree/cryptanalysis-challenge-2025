@@ -1,0 +1,5 @@
+[0311/164706.387:ERROR:assistant_path_provider.cc(130)] No install subfolder could be found.
+[0311/164706.387:ERROR:tracking_data_utils.cc(48)] Can't read edition: failed to get resources directory.
+[0319/191535.664:ERROR:tracking_data_utils.cc(72)] Can't read edition: missing value.
+[0319/191549.515:WARNING:network_thread.cc(184)] Retry limit exceeded. Dumping messages!
+[0319/193240.110:ERROR:tracking_data_utils.cc(72)] Can't read edition: missing value.

@@ -1,1 +1,1 @@
-# crypto-analysis-2025
+# Cryptanalysis Challenge 2025
