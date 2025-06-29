@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  ubuntu_dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64  # x86_64 에뮬레이션용 (M1 Mac에서 필요)
+    container_name: cryptoanalysis
+    tty: true
+    stdin_open: true
+    volumes:
+      - ../:/workspace  # 호스트의 상위 폴더를 컨테이너의 /workspace에 마운트

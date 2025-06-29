@@ -1,0 +1,1 @@
+Usage: texttrace <input> <output>
