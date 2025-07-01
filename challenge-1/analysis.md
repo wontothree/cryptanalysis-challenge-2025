@@ -1,4 +1,6 @@
-# SOlution
+# Analysis
+
+다음은 1번문제 소스코드를 분석한 파일이다.
 
 ```c
 enum errorCode
