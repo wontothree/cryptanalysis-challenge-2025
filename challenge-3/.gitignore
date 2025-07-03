@@ -2,9 +2,8 @@
 
 wbcaes128
 wbcaes128.trace
+wbcaes128.txt
 wbcaes128.db
 
 # object file
 *.o 
-
-sqlitetrace

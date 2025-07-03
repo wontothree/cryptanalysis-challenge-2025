@@ -36,39 +36,43 @@ update-locale LANG=en_US.UTF-8
 export LANG=en_US.UTF-8
 ```
 
+# Getting Started
+
+```bash
+# generate wbcaes128 (binary file)
+gcc -o wbcaes128 ./wbcaes128.c
+```
+
 Generate `wbcaes128.trace`
 
 ```bash
 cd challenge-3
 valgrind --tool=tracergrind --output=wbcaes128.trace ./wbcaes128
-ls -lh wbcaes128.trace # check
+ls -lh wbcaes128.trace  # check
+less wbcaes128.trace    # .trace 파일 확인 및 파싱
 ```
 
+Generated `wbcaes128.txt`
+
 ```bash
-# TracerGrind를 사용해 화이트박스 암호 바이너리 wbcaes128의 실행 과정을 추적하는 명령어
-valgrind --tool=tracergrind --output=wbcaes128.trace ./wbcaes128 00112233445566778899aabbccddeeff
-
-# .trace 파일 확인 및 파싱
-less wbcaes128.trace
-
-# texttrace 또는 sqlitetrace로 분석 변환
 apt install -y libcapstone-dev
+
+cd challenge-3
+valgrind --tool=tracergrind --output=wbcaes128.trace ./wbcaes128 00112233445566778899aabbccddeeff # TracerGrind를 사용해 화이트박스 암호 바이너리 wbcaes128의 실행 과정을 추적하는 명령어
 
 cd /workspace/challenge-3/Tracer/TracerGrind/texttrace
 make
-./texttrace ./../../wbcaes128.trace > ./../wbcaes128.txt
-
-# cat ../../wbcaes128.txt
-# 파일의 맨 앞 줄부터 40번째줄까지를 출력하는 command
-head -40 /workspace/challenge-3/wbcaes128.txt
+./texttrace ./../../../wbcaes128.trace > ./../../../wbcaes128.txt
+head -40 /workspace/challenge-3/wbcaes128.txt # 파일의 맨 앞 줄부터 40번째줄까지를 출력하는 command
 ```
 
-```bash
-cd /TraceGraph
-sudo apt-get install build-essential qt5-qmake qtbase5-dev-tools qtbase5-dev libsqlite3-dev
-make
-sudo make install
+Generate `wbcaes128.db`
 
+```bash
+cd /workspace/challenge-3/Tracer/TracerGrind/sqlitetrace
+make
+cd /workspace/challenge-3
+sqlitetrace wbcaes128.trace wbcaes128.db
 ```
 
 ## TraceGraph on Mac M1
@@ -83,17 +87,4 @@ cd ~/TraceGraph
 make
 file tracegraph.app/Contents/MacOS/tracegraph # tracegraph.app/Contents/MacOS/tracegraph: Mach-O 64-bit executable arm64
 ./tracegraph.app/Contents/MacOS/tracegraph
-```
-
-# Getting Started
-
-```bash
-# generate wbcaes128 (binary file)
-gcc -o wbcaes128 ./wbcaes128.c
-
-# generate db
-cd /workspace/challenge-3/Tracer/TracerGrind/sqlitetrace
-make
-cd /workspace/challenge-3
-sqlitetrace wbcaes128.trace wbcaes128.db
 ```
