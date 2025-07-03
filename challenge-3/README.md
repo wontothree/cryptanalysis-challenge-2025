@@ -38,8 +38,9 @@ export LANG=en_US.UTF-8
 
 # Getting Started
 
+Generate `wbcaes128` (binary file)
+
 ```bash
-# generate wbcaes128 (binary file)
 gcc -o wbcaes128 ./wbcaes128.c
 ```
 
