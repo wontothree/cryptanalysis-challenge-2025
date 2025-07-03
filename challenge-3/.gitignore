@@ -1,0 +1,11 @@
+# git rm --cached -r .
+
+wbcaes128
+
+# object file
+*.o 
+
+sqlitetrace
+
+
+wbcaes128.db

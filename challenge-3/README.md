@@ -7,7 +7,14 @@
 # Getting Started
 
 ```bash
+# generate wbcaes128 (binary file)
 gcc -o wbcaes128 ./wbcaes128.c
+
+# generate db
+cd /workspace/challenge-3/Tracer/TracerGrind/sqlitetrace
+make
+cd /workspace/challenge-3
+sqlitetrace wbcaes128.trace wbcaes128.db
 ```
 
 # Dependencies
@@ -15,8 +22,7 @@ gcc -o wbcaes128 ./wbcaes128.c
 ```bash
 cd challenge-3
 
-# Valgrind 3.15.0 공식 소스 압축 파일을 다운
-# curl -O https://sourceware.org/pub/valgrind/valgrind-3.15.0.tar.bz2
+# curl -O https://sourceware.org/pub/valgrind/valgrind-3.15.0.tar.bz2 # Valgrind 3.15.0 공식 소스 압축 파일을 다운
 
 # 압축을 풀어서자동으로 valgrind-3.15.0 폴더가 생성
 tar xf valgrind-3.15.0.tar.bz2
