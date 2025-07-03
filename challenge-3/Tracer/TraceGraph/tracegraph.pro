@@ -30,3 +30,7 @@ LIBS += -lsqlite3
 
 target.path = /usr/bin
 INSTALLS += target
+
+# 추가
+QMAKE_CXXFLAGS += -std=c++11
+target.path = /usr/bin
