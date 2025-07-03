@@ -112,6 +112,7 @@ void rotate_left_128(uint64_t* inout, int bits);
 
 
 // optimize aes round
+// https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#ig_expand=236,222,234,234 참고하여 제작
 void opt_aes_round(uint8_t *state_bytes, uint8_t *roundKey_bytes);
 void aes_intr_main(uint8_t *state, uint8_t *expandedKey, int32_t nbrRounds);
 
@@ -121,6 +122,29 @@ void opt_aes_round(uint8_t *state_bytes, uint8_t *roundKey_bytes){
     __m128i roundkey = _mm_loadu_si128((__m128i*)roundkey);
     state = _mm_aesenc_si128(state, roundkey);
     _mm_storeu_si128((__m128i*)state_bytes, state);
+}
+
+void aes_intr_main(uint8_t *state, uint8_t *expandedKey, int32_t nbrRounds){
+    int32_t i = 0;
+
+    uint8_t roundKey[16];
+
+    createRoundKey(expandedKey, roundKey);
+    addRoundKey(state, roundKey);
+
+    for (i = 1; i < nbrRounds; i++)
+    {
+        createRoundKey(expandedKey + 16 * i, roundKey);
+        opt_aes_round(state, roundKey);
+    }
+
+    createRoundKey(expandedKey + 16 * nbrRounds, roundKey);
+
+    // Intristics으로 처리하기
+    __m128i s = _mm_loadu_si128((__m128i*)state);
+    __m128i rk = _mm_loadu_si128((__m128i*)roundKey);
+    s = _mm_aesenclast_si128(s, rk);
+    _mm_storeu_si128((__m128i*)state, s);
 }
 
 uint8_t getSBoxValue(uint8_t num)
