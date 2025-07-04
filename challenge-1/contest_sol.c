@@ -131,7 +131,7 @@ void aes_intr_main(uint8_t *state, uint8_t *expandedKey, int32_t nbrRounds){
     //Final ROund
     s = _mm_aesenclast_si128(s, _mm_loadu_si128((__m128i*)(expandedKey+16 * nbrRounds)));
 
-    _mm_loadu_si128((__m128i*)state, s);
+    _mm_storeu_si128((__m128i*)state, s);
 }
 
 uint8_t getSBoxValue(uint8_t num)
