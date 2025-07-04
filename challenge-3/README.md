@@ -43,28 +43,36 @@ export LANG=en_US.UTF-8
 
 # Getting Started
 
-Generate `wbcaes128` (binary file)
+| 파일                | 역할                                       |
+| ----------------- | ---------------------------------------- |
+| `wbcaes128.trace` | TracerGrind가 생성한 **원시 실행 추적**            |
+| `wbcaes128.txt`   | 사람이 보기 쉽게 정리한 **가독성 높은 로그**              |
+| `wbcaes128.db`    | TraceGraph가 읽기 좋도록 만든 **시각화용 SQLite DB** |
 
-```bash
-gcc -o wbcaes128 ./wbcaes128.c
-```
-
-Generate `wbcaes128.trace`
+**Generate `wbcaes128` (binary file)**
 
 ```bash
 cd challenge-3
-valgrind --tool=tracergrind --output=wbcaes128.trace ./wbcaes128
+gcc -o wbcaes128 ./wbcaes128.c
+```
+
+**Generate `wbcaes128.trace`** (deactivate ASLR)
+
+```bash
+cd challenge-3
+
+setarch `uname -m` -R valgrind --tool=tracergrind --output=wbcaes128.trace ./wbcaes128 ...           # off ASLR
+# or
+setarch `uname -m` -R valgrind --tool=tracergrind --output=wbcaes128.trace ./wbcaes128 00112233445566778899aabbccddeeff # TracerGrind를 사용해 화이트박스 암호 바이너리 wbcaes128의 실행 과정을 추적하는 명령어
+
 ls -lh wbcaes128.trace  # check
 less wbcaes128.trace    # .trace 파일 확인 및 파싱
 ```
 
-Generated `wbcaes128.txt`
+**Generated `wbcaes128.txt`**
 
 ```bash
 apt install -y libcapstone-dev
-
-cd challenge-3
-valgrind --tool=tracergrind --output=wbcaes128.trace ./wbcaes128 00112233445566778899aabbccddeeff # TracerGrind를 사용해 화이트박스 암호 바이너리 wbcaes128의 실행 과정을 추적하는 명령어
 
 cd /workspace/challenge-3/Tracer/TracerGrind/texttrace
 make
@@ -72,7 +80,7 @@ make
 head -40 /workspace/challenge-3/wbcaes128.txt # 파일의 맨 앞 줄부터 40번째줄까지를 출력하는 command
 ```
 
-Generate `wbcaes128.db`
+**Generate `wbcaes128.db`**
 
 ```bash
 cd /workspace/challenge-3/Tracer/TracerGrind/sqlitetrace
