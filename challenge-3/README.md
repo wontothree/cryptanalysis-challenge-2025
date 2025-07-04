@@ -49,42 +49,81 @@ export LANG=en_US.UTF-8
 | `wbcaes128.txt`   | 사람이 보기 쉽게 정리한 **가독성 높은 로그**              |
 | `wbcaes128.db`    | TraceGraph가 읽기 좋도록 만든 **시각화용 SQLite DB** |
 
-**Generate `wbcaes128` (binary file)**
+## Generate `wbcaes128` (binary file)
 
 ```bash
 cd challenge-3
 gcc -o wbcaes128 ./wbcaes128.c
 ```
 
-**Generate `wbcaes128.trace`** (deactivate ASLR)
+## Generate `wbcaes128.trace` (deactivating ASLR)
 
 ```bash
 cd challenge-3
 
 setarch `uname -m` -R valgrind --tool=tracergrind --output=wbcaes128.trace ./wbcaes128 ...           # off ASLR
 # or
-setarch `uname -m` -R valgrind --tool=tracergrind --output=wbcaes128.trace ./wbcaes128 00112233445566778899aabbccddeeff # TracerGrind를 사용해 화이트박스 암호 바이너리 wbcaes128의 실행 과정을 추적하는 명령어
+setarch `uname -m` -R valgrind \
+  --tool=tracergrind \
+  --output=wbcaes128.trace \
+  ./wbcaes128 00112233445566778899aabbccddeeff
+  # TracerGrind를 사용해 화이트박스 암호 바이너리 wbcaes128의 실행 과정을 추적하는 명령어
 
 ls -lh wbcaes128.trace  # check
 less wbcaes128.trace    # .trace 파일 확인 및 파싱
 ```
 
-**Generated `wbcaes128.txt`**
+**메모리 범위 설정**
+
+```bash
+setarch `uname -m` -R \
+  valgrind --tool=tracergrind \
+  --output=wbcaes128.trace \
+  --filter=0x401000-0x401FFF \
+  ./wbcaes128 00112233445566778899aabbccddeeff
+```
+
+## Generate `wbcaes128.txt` by TextTrace
+
+install
 
 ```bash
 apt install -y libcapstone-dev
-
-cd /workspace/challenge-3/Tracer/TracerGrind/texttrace
-make
-./texttrace ./../../../wbcaes128.trace > ./../../../wbcaes128.txt
-head -40 /workspace/challenge-3/wbcaes128.txt # 파일의 맨 앞 줄부터 40번째줄까지를 출력하는 command
 ```
 
-**Generate `wbcaes128.db`**
+build
+
+```bash
+cd /workspace/challenge-3/Tracer/TracerGrind/texttrace
+make
+```
+
+**view this trace in human readeable format**
+
+```bash
+./texttrace ./../../../wbcaes128.trace ./../../../wbcaes128.txt
+# or
+objdump -d ./wbcaes128 | less
+```
+
+파일의 맨 앞 줄부터 40번째줄까지를 출력
+
+```bash
+head -40 /workspace/challenge-3/wbcaes128.txt
+```
+
+## Generate `wbcaes128.db` by SqliteTrace
+
+build
 
 ```bash
 cd /workspace/challenge-3/Tracer/TracerGrind/sqlitetrace
 make
+```
+
+generate a sqlite database
+
+```bash
 cd /workspace/challenge-3
 sqlitetrace wbcaes128.trace wbcaes128.db
 ```
