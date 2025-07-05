@@ -2,7 +2,7 @@
 
 화이트박스 암호는 공격자가 소프트웨어의 내부를 완전히 분석할 수 있는 화이트박스 모델 공격자 환경에서 암호 알고리즘 키를 포함한 내부 정보를 보호하면서 암호 연산을 수행할 수 있도록 설계한 암호입니다.
 
-주어진 소스파일(`wbcases128.c`)은 Chow et al.의 White-box cryptograph and an AES implementation 논문 방식으로 AES-128 암호화를 외부 인코딩 없이 구현한 버전입니다. 즉, 일반 AES-128 암호화와 동일하게 동작합니다. 이를 분석하여 128비트 마스터키를 찾아내고, 그 분석 논리 및 과정을 상세히 문서화하시오.
+주어진 소스파일(`wbcases128.c`)은 Chow et al.의 White-box cryptograph and an AES implementation 논문 방식으로 <span style="color: #000000; background-color:#fff5b1;">AES-128 암호화</span>를 외부 인코딩 없이 구현한 버전입니다. 즉, 일반 AES-128 암호화와 동일하게 동작합니다. 이를 분석하여 128비트 마스터키를 찾아내고, 그 분석 논리 및 과정을 상세히 문서화하시오.
 
 # Dependencies
 
@@ -41,6 +41,42 @@ update-locale LANG=en_US.UTF-8
 export LANG=en_US.UTF-8
 ```
 
+# Build
+
+install
+
+```bash
+apt install -y libcapstone-dev
+```
+
+Build TextTrace
+
+```bash
+cd /workspace/challenge-3/Tracer/TracerGrind/texttrace
+make
+```
+
+Build SqliteTrace
+
+```bash
+cd /workspace/challenge-3/Tracer/TracerGrind/sqlitetrace
+make
+```
+
+Build on Mac
+
+
+```bash
+brew install qt@5 sqlite
+export PATH="/opt/homebrew/opt/qt@5/bin:$PATH"
+```
+
+```bash
+cd ~/TraceGraph
+make
+file tracegraph.app/Contents/MacOS/tracegraph # tracegraph.app/Contents/MacOS/tracegraph: Mach-O 64-bit executable arm64
+```
+
 # Getting Started
 
 | 파일                | 역할                                       |
@@ -54,6 +90,7 @@ export LANG=en_US.UTF-8
 ```bash
 cd challenge-3
 gcc -o wbcaes128 ./wbcaes128.c
+objdump -d ./wbcaes128 | less # check
 ```
 
 ## Generate `wbcaes128.trace` (deactivating ASLR)
@@ -61,83 +98,41 @@ gcc -o wbcaes128 ./wbcaes128.c
 ```bash
 cd challenge-3
 
-setarch `uname -m` -R valgrind --tool=tracergrind --output=wbcaes128.trace ./wbcaes128 ...           # off ASLR
-# or
+# 전체
 setarch `uname -m` -R valgrind \
   --tool=tracergrind \
-  --output=wbcaes128.trace \
-  ./wbcaes128 00112233445566778899aabbccddeeff
+  --output=<trace_file_name>.trace \
+  ./wbcaes128 <plain_text>
   # TracerGrind를 사용해 화이트박스 암호 바이너리 wbcaes128의 실행 과정을 추적하는 명령어
+
+# or 메모리 범위 설정
+setarch `uname -m` -R valgrind \
+  --tool=tracergrind \
+  --output=<trace_file_name>.trace \
+  --filter=0x400000-0x50000 \
+  ./wbcaes128 <plain_text>
 
 ls -lh wbcaes128.trace  # check
 less wbcaes128.trace    # .trace 파일 확인 및 파싱
 ```
 
-**메모리 범위 설정**
-
-```bash
-setarch `uname -m` -R \
-  valgrind --tool=tracergrind \
-  --output=wbcaes128.trace \
-  --filter=0x401000-0x401FFF \
-  ./wbcaes128 00112233445566778899aabbccddeeff
-```
-
 ## Generate `wbcaes128.txt` by TextTrace
-
-install
-
-```bash
-apt install -y libcapstone-dev
-```
-
-build
 
 ```bash
 cd /workspace/challenge-3/Tracer/TracerGrind/texttrace
-make
-```
-
-**view this trace in human readeable format**
-
-```bash
-./texttrace ./../../../wbcaes128.trace ./../../../wbcaes128.txt
-# or
-objdump -d ./wbcaes128 | less
-```
-
-파일의 맨 앞 줄부터 40번째줄까지를 출력
-
-```bash
-head -40 /workspace/challenge-3/wbcaes128.txt
+./texttrace ./../../../<trace_file_name>.trace ./../../../<txt_file_name>.txt
 ```
 
 ## Generate `wbcaes128.db` by SqliteTrace
 
-build
-
-```bash
-cd /workspace/challenge-3/Tracer/TracerGrind/sqlitetrace
-make
-```
-
-generate a sqlite database
-
 ```bash
 cd /workspace/challenge-3
-sqlitetrace wbcaes128.trace wbcaes128.db
+sqlitetrace <trace_file_name>.trace <db_file_name>.db
 ```
 
-## TraceGraph on Mac M1
-
-```bash
-brew install qt@5 sqlite
-export PATH="/opt/homebrew/opt/qt@5/bin:$PATH"
-```
+## TraceGraph on Arm64
 
 ```bash
 cd ~/TraceGraph
-make
-file tracegraph.app/Contents/MacOS/tracegraph # tracegraph.app/Contents/MacOS/tracegraph: Mach-O 64-bit executable arm64
 ./tracegraph.app/Contents/MacOS/tracegraph
 ```

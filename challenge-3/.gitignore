@@ -1,9 +1,11 @@
 # git rm --cached -r .
 
-wbcaes128
-wbcaes128.trace
-wbcaes128.txt
-wbcaes128.db
+*.trace
+*.txt
+*.db
 
 # object file
 *.o 
+
+wbcaes128
+*.DS_Store
