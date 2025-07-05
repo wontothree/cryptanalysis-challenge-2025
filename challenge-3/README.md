@@ -86,8 +86,8 @@ Generate `wbcaes128` (binary file)
 
 ```bash
 cd /workspace/challenge-3
-gcc -o wbcaes128 ./wbcaes128.c
-objdump -d ./wbcaes128 | less # check
+gcc -no-pie -o fixed_address_wbcaes128 wbcaes128.c
+objdump -M intel -D -S ./fixed_address_wbcaes128 > fixed_address_wbcaes128.txt # disassembly code
 ```
 
 Generate `wbcaes128.trace` (deactivating ASLR)
@@ -99,18 +99,7 @@ cd /workspace/challenge-3
 setarch `uname -m` -R valgrind \
   --tool=tracergrind \
   --output=<trace_file_name>.trace \
-  ./wbcaes128 <plain_text>
-  # TracerGrind를 사용해 화이트박스 암호 바이너리 wbcaes128의 실행 과정을 추적하는 명령어
-
-# or 메모리 범위 설정
-setarch `uname -m` -R valgrind \
-  --tool=tracergrind \
-  --output=<trace_file_name>.trace \
-  --filter=0x400000-0x500000 \
-  ./wbcaes128 <plain_text>
-
-ls -lh wbcaes128.trace  # check
-less wbcaes128.trace    # .trace 파일 확인 및 파싱
+  ./<binary_file_name> <plain_text>
 ```
 
 Generate `wbcaes128.txt` by TextTrace
