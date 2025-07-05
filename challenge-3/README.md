@@ -41,13 +41,16 @@ update-locale LANG=en_US.UTF-8
 export LANG=en_US.UTF-8
 ```
 
-# Build
-
-install
-
 ```bash
 apt install -y libcapstone-dev
 ```
+
+```bash
+brew install qt@5 sqlite
+export PATH="/opt/homebrew/opt/qt@5/bin:$PATH"
+```
+
+# Build
 
 Build TextTrace
 
@@ -63,13 +66,7 @@ cd /workspace/challenge-3/Tracer/TracerGrind/sqlitetrace
 make
 ```
 
-Build on Mac
-
-
-```bash
-brew install qt@5 sqlite
-export PATH="/opt/homebrew/opt/qt@5/bin:$PATH"
-```
+Build TraceGraph on Arm64
 
 ```bash
 cd ~/TraceGraph
@@ -85,18 +82,18 @@ file tracegraph.app/Contents/MacOS/tracegraph # tracegraph.app/Contents/MacOS/tr
 | `wbcaes128.txt`   | 사람이 보기 쉽게 정리한 **가독성 높은 로그**              |
 | `wbcaes128.db`    | TraceGraph가 읽기 좋도록 만든 **시각화용 SQLite DB** |
 
-## Generate `wbcaes128` (binary file)
+Generate `wbcaes128` (binary file)
 
 ```bash
-cd challenge-3
+cd /workspace/challenge-3
 gcc -o wbcaes128 ./wbcaes128.c
 objdump -d ./wbcaes128 | less # check
 ```
 
-## Generate `wbcaes128.trace` (deactivating ASLR)
+Generate `wbcaes128.trace` (deactivating ASLR)
 
 ```bash
-cd challenge-3
+cd /workspace/challenge-3
 
 # 전체
 setarch `uname -m` -R valgrind \
@@ -109,28 +106,28 @@ setarch `uname -m` -R valgrind \
 setarch `uname -m` -R valgrind \
   --tool=tracergrind \
   --output=<trace_file_name>.trace \
-  --filter=0x400000-0x50000 \
+  --filter=0x400000-0x500000 \
   ./wbcaes128 <plain_text>
 
 ls -lh wbcaes128.trace  # check
 less wbcaes128.trace    # .trace 파일 확인 및 파싱
 ```
 
-## Generate `wbcaes128.txt` by TextTrace
+Generate `wbcaes128.txt` by TextTrace
 
 ```bash
 cd /workspace/challenge-3/Tracer/TracerGrind/texttrace
 ./texttrace ./../../../<trace_file_name>.trace ./../../../<txt_file_name>.txt
 ```
 
-## Generate `wbcaes128.db` by SqliteTrace
+Generate `wbcaes128.db` by SqliteTrace
 
 ```bash
 cd /workspace/challenge-3
 sqlitetrace <trace_file_name>.trace <db_file_name>.db
 ```
 
-## TraceGraph on Arm64
+Visualize on Arm64 by TraceGraph
 
 ```bash
 cd ~/TraceGraph
