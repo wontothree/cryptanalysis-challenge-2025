@@ -113,37 +113,24 @@ void rotate_left_128(uint64_t* inout, int bits);
 
 // optimize aes round
 // https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#ig_expand=236,222,234,234 참고하여 제작
-void opt_aes_round(uint8_t *state_bytes, uint8_t *roundKey_bytes);
 void aes_intr_main(uint8_t *state, uint8_t *expandedKey, int32_t nbrRounds);
 
-void opt_aes_round(uint8_t *state_bytes, uint8_t *roundKey_bytes){
-
-    __m128i state = _mm_loadu_si128((__m128i*)state);
-    __m128i roundkey = _mm_loadu_si128((__m128i*)roundkey);
-    state = _mm_aesenc_si128(state, roundkey);
-    _mm_storeu_si128((__m128i*)state_bytes, state);
-}
 
 void aes_intr_main(uint8_t *state, uint8_t *expandedKey, int32_t nbrRounds){
+
+    __m128i s = _mm_loadu_si128((__m128i*) state);
     int32_t i = 0;
 
-    uint8_t roundKey[16];
+    // 초기 라운드 : createRoundKey와 addRoundKey를 다음 인텔 함수로 대체 가능.
+    s = _mm_xor_si128(s, _mm_loadu_si128((__m128i*)(expandedKey)));
 
-    createRoundKey(expandedKey, roundKey);
-    addRoundKey(state, roundKey);
-
+    // Middle Round
     for (i = 1; i < nbrRounds; i++)
-    {
-        createRoundKey(expandedKey + 16 * i, roundKey);
-        opt_aes_round(state, roundKey);
-    }
+        s = _mm_aesenc_si128(s, _mm_loadu_si128((__m128i*)(expandedKey+16 * i)));
+ 
+    //Final ROund
+    s = _mm_aesenclast_si128(s, _mm_loadu_si128((__m128i*)(expandedKey+16 * nbrRounds)));
 
-    createRoundKey(expandedKey + 16 * nbrRounds, roundKey);
-
-    // Intristics으로 처리하기
-    __m128i s = _mm_loadu_si128((__m128i*)state);
-    __m128i rk = _mm_loadu_si128((__m128i*)roundKey);
-    s = _mm_aesenclast_si128(s, rk);
     _mm_storeu_si128((__m128i*)state, s);
 }
 
@@ -474,7 +461,7 @@ int8_t aes_encrypt(uint8_t *input,
         expandKey(expandedKey, key, size, expandedKeySize);
 
         // encrypt the block using the expandedKey
-        aes_main(block, expandedKey, nbrRounds);
+        aes_intr_main(block, expandedKey, nbrRounds);
 
         // unmap the block again into the output
         for (i = 0; i < 4; i++)
@@ -491,6 +478,8 @@ int8_t aes_encrypt(uint8_t *input,
 
     return SUCCESS;
 }
+
+
 
 void poly64_mul(uint64_t a, uint64_t b, uint64_t *c)
 {   
