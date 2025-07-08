@@ -8,6 +8,10 @@
 #include <stdint.h> // for uint8_t
 #include <time.h>   // for random seed
 #include <inttypes.h>  // for PRId64 macro
+#include <wmmintrin.h> // AES-NI, PCLMULQDQ
+#include <emmintrin.h> // SSE2
+#include <smmintrin.h> // SSE4.1
+#include <immintrin.h> // AVX, AVX2 (통합)
 
 enum errorCode
 {
@@ -105,6 +109,145 @@ void poly64_mul(uint64_t a, uint64_t b, uint64_t *c);
 
 // rotation operation
 void rotate_left_128(uint64_t* inout, int bits);
+
+//aes_encrypt 인텔 적용 함수
+int8_t aes_intel_encrypt(uint8_t *input, uint8_t *output, uint8_t *key, enum keySize size);
+
+// optimize aes round
+// https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#ig_expand=236,222,234,234 참고하여 제작
+void aes_intr_main(uint8_t *state, __m128i *round_keys, int32_t nbrRounds);
+
+// 키 확장 함수들
+__m128i key_expansion_step(__m128i key, __m128i keygened);
+void aes128_key_expansion(uint8_t *key, __m128i *round_keys);
+
+// 갈루아 곱 최적화
+void GF_acc_mul(const uint64_t* a, const uint64_t* b, uint64_t* c);
+void poly64_acc_mul(uint64_t a, uint64_t b, uint64_t *c);
+
+//확장 보조 함수
+__m128i key_expansion_step(__m128i key, __m128i keygened){
+    keygened = _mm_shuffle_epi32(keygened, _MM_SHUFFLE(3,3,3,3)); // 가장 상위 32비트 반복
+    key = _mm_xor_si128(key, _mm_slli_si128(key, 4));
+    key = _mm_xor_si128(key, _mm_slli_si128(key, 4));
+    key = _mm_xor_si128(key, _mm_slli_si128(key, 4));
+    return _mm_xor_si128(key, keygened);
+}
+
+// AES-128 키 확장함수
+void aes128_key_expansion(uint8_t *key, __m128i *round_keys){
+    round_keys[0] = _mm_loadu_si128((const __m128i*) key);
+
+    __m128i temp = round_keys[0];
+
+    static const uint8_t rcon[10] = {0x01, 0x02, 0x04, 0x08,0x10, 0x20, 0x40, 0x80,0x1B, 0x36};
+
+    // 라운드 키 1~10 생성
+    for (int i = 1; i <= 10; ++i) {
+        __m128i keygened = _mm_aeskeygenassist_si128(temp, rcon[i - 1]);
+        temp = key_expansion_step(temp, keygened);
+        round_keys[i] = temp;
+    }
+}
+
+//aes_encrypt 가속화 메인 함수
+void aes_intr_main(uint8_t *state, __m128i *round_keys, int32_t nbrRounds){
+    __m128i s = _mm_loadu_si128((__m128i*) state);
+
+    // 초기 라운드
+    s = _mm_xor_si128(s, round_keys[0]);
+
+    // 중간 라운드 (1 ~ N-1)
+    for(int i=1; i < nbrRounds; ++i){
+        s = _mm_aesenc_si128(s, round_keys[i]);
+    }
+
+    // 마지막 라운드
+    s = _mm_aesenclast_si128(s, round_keys[nbrRounds]);
+
+    //Final ROund
+    _mm_storeu_si128((__m128i*)state, s);
+}
+
+//갈루아 곱
+void poly64_acc_mul(uint64_t a, uint64_t b, uint64_t *c){
+    __m128i A = _mm_set_epi64x(0, a); //상위 0, 하위 a
+    __m128i B = _mm_set_epi64x(0, b);
+
+    //갈루아 곱
+    __m128i R = _mm_clmulepi64_si128(A, B, 0x00); //imm8 low x low 곱
+
+    //결과 저장
+    c[0] = _mm_cvtsi128_si64(R);
+    c[1] = _mm_extract_epi64(R, 1);
+}
+
+void GF_acc_mul(const uint64_t* a, const uint64_t* b, uint64_t* c){
+    uint64_t t[2] = {0,};
+    uint64_t temp[8] = {0,};
+
+    poly64_acc_mul(a[0], b[0], &temp[0]);
+    poly64_acc_mul(a[1], b[1], &temp[2]);  
+    poly64_acc_mul(a[0], b[1], &temp[4]);
+    poly64_acc_mul(a[1], b[0], &temp[6]);
+
+    c[0] = temp[0];
+    c[1] = temp[1] ^ temp[4] ^ temp[6];
+    c[2] = temp[2] ^ temp[5] ^ temp[7];
+    c[3] = temp[3];
+
+}
+
+int8_t aes_intel_encrypt(uint8_t *input,
+                   uint8_t *output,
+                   uint8_t *key,
+                   enum keySize size)
+{
+    // the number of rounds
+    int32_t nbrRounds;
+
+    // the 128 bit block to encode
+    uint8_t block[16];
+
+    // AES-NI round keys
+    // 일반적으로 AES-128은 11개
+    __m128i round_keys[11];
+
+    // set the number of rounds
+    switch (size)
+    {
+    case SIZE_16:
+        nbrRounds = 10;
+        break;
+    // case SIZE_24:
+    //     return ERROR_AES_UNSUPPORTED;
+    //     break;
+    // case SIZE_32:
+    //     return ERROR_AES_UNSUPPORTED;
+    //     break;
+    default:
+        return ERROR_AES_UNKNOWN_KEYSIZE;
+        break;
+    }
+
+    // 인풋을 block으로 복사
+    __m128i temp = _mm_loadu_si128((__m128i*)input);
+    _mm_store_si128((__m128i*)block, temp); // block은 정렬되어 있어야 함
+
+    // step 2 : aes-128만 키 확장
+    aes128_key_expansion(key, round_keys);
+
+    // 암호화
+    // 변환, 역변환 코드는 삭제함. intel intristic로 바꾼 뒤에는 없애는게 맞음.
+    aes_intr_main(block, round_keys, nbrRounds);
+
+    // block을 아웃풋으로 복사
+    temp = _mm_load_si128((__m128i*)block);
+    _mm_storeu_si128((__m128i*)output, temp);
+
+
+    return SUCCESS;
+}
 
 uint8_t getSBoxValue(uint8_t num)
 {
@@ -580,10 +723,10 @@ void new_keyed_hash(const uint64_t* input, uint64_t* key, uint64_t* output){
     uint64_t first_temp[8] = {0,};
     uint64_t second_temp[8] = {0,};
 
-    aes_encrypt((uint8_t*)&input[0], (uint8_t*)&first_temp[0], (uint8_t*)key, SIZE_16);
-    aes_encrypt((uint8_t*)&input[2], (uint8_t*)&first_temp[2], (uint8_t*)key, SIZE_16);
-    aes_encrypt((uint8_t*)&input[4], (uint8_t*)&first_temp[4], (uint8_t*)key, SIZE_16);
-    aes_encrypt((uint8_t*)&input[6], (uint8_t*)&first_temp[6], (uint8_t*)key, SIZE_16);
+    aes_intel_encrypt((uint8_t*)&input[0], (uint8_t*)&first_temp[0], (uint8_t*)key, SIZE_16);
+    aes_intel_encrypt((uint8_t*)&input[2], (uint8_t*)&first_temp[2], (uint8_t*)key, SIZE_16);
+    aes_intel_encrypt((uint8_t*)&input[4], (uint8_t*)&first_temp[4], (uint8_t*)key, SIZE_16);
+    aes_intel_encrypt((uint8_t*)&input[6], (uint8_t*)&first_temp[6], (uint8_t*)key, SIZE_16);
 
     rotate_left_128(&first_temp[0], 8);  
     rotate_left_128(&first_temp[2], 16);
@@ -591,8 +734,8 @@ void new_keyed_hash(const uint64_t* input, uint64_t* key, uint64_t* output){
     rotate_left_128(&first_temp[6], 32);
 
 
-    GF_mul(&first_temp[0],&first_temp[2],&second_temp[0]);
-    GF_mul(&first_temp[4],&first_temp[6],&second_temp[4]);
+    GF_acc_mul(&first_temp[0],&first_temp[2],&second_temp[0]);
+    GF_acc_mul(&first_temp[4],&first_temp[6],&second_temp[4]);
 
     for(int i=0; i<4; i++){
         output[i] = second_temp[i] ^ second_temp[i+4];
