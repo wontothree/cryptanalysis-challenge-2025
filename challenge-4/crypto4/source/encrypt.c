@@ -7,6 +7,18 @@
 
 // m4ri 기반 LFSR 상태 구조체 등은 encrypt.h에 정의되어 있다고 가정
 
+// --- 전역 LFSR companion matrix 캐시 ---
+mzd_t* A1 = NULL; // R1 companion matrix (19x19)
+mzd_t* A2 = NULL; // R2 companion matrix (22x22)
+mzd_t* A3 = NULL; // R3 companion matrix (23x23)
+mzd_t* A4 = NULL; // R4 companion matrix (17x17)
+
+// --- 전역 zS matrix 캐시 ---
+mzd_t* zS_R1 = NULL; // zS R1 matrix (ZS_ROWS x 19)
+mzd_t* zS_R2 = NULL; // zS R2 matrix (ZS_ROWS x 22)
+mzd_t* zS_R3 = NULL; // zS R3 matrix (ZS_ROWS x 23)
+mzd_t* zS_R4 = NULL; // zS R4 matrix (ZS_ROWS x 17)
+
 // --- 키스케줄, 비트 리버설 등 my_encrypt.c의 논리를 m4ri로 ---
 
 // 키스케줄: key_vec(1x64), nonce_vec(1x19) -> a_vec(1x64)
@@ -72,11 +84,11 @@ void lfsr_matrix_initialization(lfsr_matrix_state_t* state) {
 
 // 키 인젝션: aa_vec(1x64), state -> state
 void key_injection_m4ri(const mzd_t* aa_vec, lfsr_matrix_state_t* state) {
-    static mzd_t* A1 = NULL; static mzd_t* A2 = NULL; static mzd_t* A3 = NULL; static mzd_t* A4 = NULL;
-    if (!A1) A1 = lfsr_companion_matrix_transposed(0xE4000, 19);
-    if (!A2) A2 = lfsr_companion_matrix_transposed(0x622000, 22);
-    if (!A3) A3 = lfsr_companion_matrix_transposed(0xCC0000, 23);
-    if (!A4) A4 = lfsr_companion_matrix_transposed(0x26200, 17);
+    // 전역 행렬이 초기화되지 않았으면 초기화
+    if (!A1 || !A2 || !A3 || !A4) {
+        lfsr_matrices_init();
+    }
+    
     for (int k = 0; k < 64; k++) {
         lfsr_matrix_clock(state->R1, A1);
         lfsr_matrix_clock(state->R2, A2);
@@ -98,104 +110,28 @@ void key_injection_m4ri(const mzd_t* aa_vec, lfsr_matrix_state_t* state) {
     mzd_write_bit(state->R4, 0, 0, 1);
 }
 
-// 상태 확장: S0_state, num, S_states[num]
+// 상태 확장: S0_state, num, S_states[num] (선형화된 버전으로 대체)
 void expand_states_from_initial_m4ri(const lfsr_matrix_state_t* S0, int num, lfsr_matrix_state_t** S_states) {
-    const int FN = 9867;
-    int Nprev[19], Ncur[19], dN[19], zeroK[64] = {0};
-    // S_states[0] = S0
-    S_states[0] = malloc(sizeof(lfsr_matrix_state_t));
-    if (!S_states[0]) { fprintf(stderr, "[m4ri] S_states[0] malloc failed\n"); abort(); }
-    S_states[0]->R1 = mzd_copy(NULL, S0->R1);
-    S_states[0]->R2 = mzd_copy(NULL, S0->R2);
-    S_states[0]->R3 = mzd_copy(NULL, S0->R3);
-    S_states[0]->R4 = mzd_copy(NULL, S0->R4);
-    if (!S_states[0]->R1 || !S_states[0]->R2 || !S_states[0]->R3 || !S_states[0]->R4) {
-        fprintf(stderr, "[m4ri] S_states[0] internal R1~R4 mzd_copy failed\n"); abort();
-    }
-    // Nprev = FN
-    for (int j = 0; j < 19; j++)
-        Nprev[j] = (FN >> j) & 1;
-    for (int i = 1; i < num; i++) {
-        int v = FN + i;
-        for (int j = 0; j < 19; j++)
-            Ncur[j] = (v >> j) & 1;
-        for (int j = 0; j < 19; j++)
-            dN[j] = Ncur[j] ^ Nprev[j];
-        // ΔS 계산 (K=0)
-        int a[64], aa[64];
-        memcpy(a, zeroK, sizeof(a));
-        for (int k = 3; k <= 15; k++) a[k] ^= dN[k+3];
-        for (int k = 22; k <= 23; k++) a[k] ^= dN[k-18];
-        for (int k = 60; k <= 63; k++) a[k] ^= dN[k-60];
-        for (int b = 0; b < 4; b++)
-            for (int j = 0; j < 16; j++)
-                aa[b*16 + 15 - j] = a[b*16 + j];
-        // LFSR 초기화 (행렬)
-        mzd_t* R1 = mzd_init(1, 19);
-        mzd_t* R2 = mzd_init(1, 22);
-        mzd_t* R3 = mzd_init(1, 23);
-        mzd_t* R4 = mzd_init(1, 17);
-        mzd_t* tmp = NULL;
-        for (int k = 0; k < 64; k++) {
-            lfsr_matrix_clock(R1, lfsr_companion_matrix_transposed(0xE4000, 19));
-            lfsr_matrix_clock(R2, lfsr_companion_matrix_transposed(0x622000, 22));
-            lfsr_matrix_clock(R3, lfsr_companion_matrix_transposed(0xCC0000, 23));
-            lfsr_matrix_clock(R4, lfsr_companion_matrix_transposed(0x26200, 17));
-            // XOR aa[k]
-            if (aa[k]) {
-                mzd_write_bit(R1, 0, 0, mzd_read_bit(R1, 0, 0) ^ 1);
-                mzd_write_bit(R2, 0, 0, mzd_read_bit(R2, 0, 0) ^ 1);
-                mzd_write_bit(R3, 0, 0, mzd_read_bit(R3, 0, 0) ^ 1);
-                mzd_write_bit(R4, 0, 0, mzd_read_bit(R4, 0, 0) ^ 1);
-            }
-        }
-        // diffS = reg 값
-        int diffS1 = 0, diffS2 = 0, diffS3 = 0, diffS4 = 0;
-        for (int b = 0; b < 19; b++) diffS1 |= mzd_read_bit(R1, 0, b) << b;
-        for (int b = 0; b < 22; b++) diffS2 |= mzd_read_bit(R2, 0, b) << b;
-        for (int b = 0; b < 23; b++) diffS3 |= mzd_read_bit(R3, 0, b) << b;
-        for (int b = 0; b < 17; b++) diffS4 |= mzd_read_bit(R4, 0, b) << b;
-        // S[i] = S[i-1] ^ diffS, LSB=1 보장
-        S_states[i] = malloc(sizeof(lfsr_matrix_state_t));
-        if (!S_states[i]) { fprintf(stderr, "[m4ri] S_states[%d] malloc failed\n", i); abort(); }
-        S_states[i]->R1 = mzd_init(1, 19);
-        S_states[i]->R2 = mzd_init(1, 22);
-        S_states[i]->R3 = mzd_init(1, 23);
-        S_states[i]->R4 = mzd_init(1, 17);
-        if (!S_states[i]->R1 || !S_states[i]->R2 || !S_states[i]->R3 || !S_states[i]->R4) {
-            fprintf(stderr, "[m4ri] S_states[%d] internal R1~R4 mzd_init failed\n", i); abort();
-        }
-        for (int b = 0; b < 19; b++) {
-            int v = (mzd_read_bit(S_states[i-1]->R1, 0, b) ^ ((diffS1 >> b) & 1));
-            if (b == 0) v |= 1; // LSB=1 보장
-            mzd_write_bit(S_states[i]->R1, 0, b, v);
-        }
-        for (int b = 0; b < 22; b++) {
-            int v = (mzd_read_bit(S_states[i-1]->R2, 0, b) ^ ((diffS2 >> b) & 1));
-            if (b == 0) v |= 1;
-            mzd_write_bit(S_states[i]->R2, 0, b, v);
-        }
-        for (int b = 0; b < 23; b++) {
-            int v = (mzd_read_bit(S_states[i-1]->R3, 0, b) ^ ((diffS3 >> b) & 1));
-            if (b == 0) v |= 1;
-            mzd_write_bit(S_states[i]->R3, 0, b, v);
-        }
-        for (int b = 0; b < 17; b++) {
-            int v = (mzd_read_bit(S_states[i-1]->R4, 0, b) ^ ((diffS4 >> b) & 1));
-            if (b == 0) v |= 1;
-            mzd_write_bit(S_states[i]->R4, 0, b, v);
-        }
-        mzd_free(R1); mzd_free(R2); mzd_free(R3); mzd_free(R4);
-        memcpy(Nprev, Ncur, 19 * sizeof(int));
-    }
+    // 선형화된 확장 함수를 호출
+    expand_states_linearized_m4ri(S0, num, S_states);
+}
+
+// LSB 정규화 함수
+void normalize_lsb(lfsr_matrix_state_t* state) {
+    if (!state) return;
+    mzd_write_bit(state->R1, 0, 0, 1);
+    mzd_write_bit(state->R2, 0, 0, 1);
+    mzd_write_bit(state->R3, 0, 0, 1);
+    mzd_write_bit(state->R4, 0, 0, 1);
 }
 
 // keystream 생성: state, pattern -> z_vec(1x208)
 void keystream_generation_with_pattern_m4ri(const lfsr_matrix_state_t* state, const uint8_t* pattern, mzd_t* z_vec) {
-    static mzd_t* A1 = NULL; static mzd_t* A2 = NULL; static mzd_t* A3 = NULL;
-    if (!A1) A1 = lfsr_companion_matrix_transposed(0xE4000, 19);
-    if (!A2) A2 = lfsr_companion_matrix_transposed(0x622000, 22);
-    if (!A3) A3 = lfsr_companion_matrix_transposed(0xCC0000, 23);
+    // 전역 행렬이 초기화되지 않았으면 초기화
+    if (!A1 || !A2 || !A3) {
+        lfsr_matrices_init();
+    }
+    
     const int discard = 250;
     mzd_t* R1 = mzd_copy(NULL, state->R1);
     mzd_t* R2 = mzd_copy(NULL, state->R2);
@@ -224,6 +160,75 @@ void encoding_part_m4ri(const char* plaintext, int* e_all, int num_blocks, const
     encode_plaintext_m4ri(plaintext, e_all, num_blocks, Gt);
 }
 
+// --- 전역 행렬 초기화 함수 ---
+void lfsr_matrices_init(void) {
+    // A 행렬들 초기화
+    if (!A1) A1 = lfsr_companion_matrix_transposed(0xE4000, 19);
+    if (!A2) A2 = lfsr_companion_matrix_transposed(0x622000, 22);
+    if (!A3) A3 = lfsr_companion_matrix_transposed(0xCC0000, 23);
+    if (!A4) A4 = lfsr_companion_matrix_transposed(0x26200, 17);
+    
+    // zS 행렬들 초기화 (한 번만)
+    if (!zS_R1) {
+        FILE* fzS = fopen("data/zS.bin", "rb");
+        if (!fzS) {
+            fprintf(stderr, "[m4ri] Failed to open data/zS.bin\n");
+            abort();
+        }
+        
+        // zS 행렬들 할당
+        zS_R1 = mzd_init(ZS_ROWS, 19);
+        zS_R2 = mzd_init(ZS_ROWS, 22);
+        zS_R3 = mzd_init(ZS_ROWS, 23);
+        zS_R4 = mzd_init(ZS_ROWS, 17);
+        
+        // zS.bin에서 비트 읽어서 행렬로 설정
+        for (int i = 0; i < ZS_ROWS; i++) {
+            // R1 (18 bits, excluding LSB)
+            for (int j = 1; j < 19; j++) {
+                int bit = fgetc(fzS);
+                mzd_write_bit(zS_R1, i, j, bit);
+            }
+            // R2 (21 bits, excluding LSB)
+            for (int j = 1; j < 22; j++) {
+                int bit = fgetc(fzS);
+                mzd_write_bit(zS_R2, i, j, bit);
+            }
+            // R3 (22 bits, excluding LSB)
+            for (int j = 1; j < 23; j++) {
+                int bit = fgetc(fzS);
+                mzd_write_bit(zS_R3, i, j, bit);
+            }
+            // R4 (16 bits, excluding LSB)
+            for (int j = 1; j < 17; j++) {
+                int bit = fgetc(fzS);
+                mzd_write_bit(zS_R4, i, j, bit);
+            }
+            
+            // LSB는 0으로 설정 (나중에 정규화)
+            mzd_write_bit(zS_R1, i, 0, 0);
+            mzd_write_bit(zS_R2, i, 0, 0);
+            mzd_write_bit(zS_R3, i, 0, 0);
+            mzd_write_bit(zS_R4, i, 0, 0);
+        }
+        fclose(fzS);
+        printf("[m4ri] LFSR companion matrices and zS matrices initialized\n");
+    }
+}
+
+void lfsr_matrices_cleanup(void) {
+    if (A1) { mzd_free(A1); A1 = NULL; }
+    if (A2) { mzd_free(A2); A2 = NULL; }
+    if (A3) { mzd_free(A3); A3 = NULL; }
+    if (A4) { mzd_free(A4); A4 = NULL; }
+    
+    if (zS_R1) { mzd_free(zS_R1); zS_R1 = NULL; }
+    if (zS_R2) { mzd_free(zS_R2); zS_R2 = NULL; }
+    if (zS_R3) { mzd_free(zS_R3); zS_R3 = NULL; }
+    if (zS_R4) { mzd_free(zS_R4); zS_R4 = NULL; }
+    
+    printf("[m4ri] LFSR companion matrices and zS matrices cleaned up\n");
+}
 
 // --- LFSR companion matrix 생성 ---
 mzd_t* lfsr_companion_matrix_transposed(uint32_t fp, int len) {
@@ -238,10 +243,8 @@ mzd_t* lfsr_companion_matrix_transposed(uint32_t fp, int len) {
 
 // --- LFSR clock: 행렬곱 기반 ---
 void lfsr_matrix_clock(mzd_t* lfsr, mzd_t* A) {
-    int n = lfsr->ncols;
     mzd_t* tmp = mzd_init(1, lfsr->ncols);
     mzd_mul(tmp, lfsr, A, 0);
-
     mzd_copy(lfsr, tmp);
     mzd_free(tmp);
 }
@@ -352,6 +355,63 @@ void encrypt_from_state_precise_m4ri(
     if (S0_state.R2) mzd_free(S0_state.R2);
     if (S0_state.R3) mzd_free(S0_state.R3);
     if (S0_state.R4) mzd_free(S0_state.R4);
+}
+
+// --- 선형화된 상태 확장 (zS.bin 사용) ---
+void expand_states_linearized_m4ri(const lfsr_matrix_state_t* S0, int num, lfsr_matrix_state_t** S_states) {
+    // 전역 zS가 초기화되지 않았으면 초기화
+    if (!zS_R1) {
+        lfsr_matrices_init();
+    }
+    
+    // 각 S_states 생성 (진짜 행렬 연산)
+    for (int i = 0; i < num; i++) {
+        S_states[i] = malloc(sizeof(lfsr_matrix_state_t));
+        if (!S_states[i]) { fprintf(stderr, "[m4ri] S_states[%d] malloc failed\n", i); abort(); }
+        
+        S_states[i]->R1 = mzd_init(1, 19);
+        S_states[i]->R2 = mzd_init(1, 22);
+        S_states[i]->R3 = mzd_init(1, 23);
+        S_states[i]->R4 = mzd_init(1, 17);
+        
+        if (!S_states[i]->R1 || !S_states[i]->R2 || !S_states[i]->R3 || !S_states[i]->R4) {
+            fprintf(stderr, "[m4ri] S_states[%d] internal R1~R4 mzd_init failed\n", i); abort();
+        }
+        
+        if (i == 0) {
+            // S[0] = S0
+            mzd_copy(S_states[i]->R1, S0->R1);
+            mzd_copy(S_states[i]->R2, S0->R2);
+            mzd_copy(S_states[i]->R3, S0->R3);
+            mzd_copy(S_states[i]->R4, S0->R4);
+        } else {
+            // S[i] = S0 ⊕ zS[i-1] (진짜 행렬 연산)
+            // zS의 (i-1)번째 row를 추출하여 S0와 XOR
+            
+            // R1: zS_R1의 (i-1)번째 row를 추출
+            mzd_t* zS_row_R1 = mzd_init_window(zS_R1, i-1, 0, i, 19);
+            mzd_add(S_states[i]->R1, S0->R1, zS_row_R1);
+            mzd_free(zS_row_R1);
+            
+            // R2: zS_R2의 (i-1)번째 row를 추출  
+            mzd_t* zS_row_R2 = mzd_init_window(zS_R2, i-1, 0, i, 22);
+            mzd_add(S_states[i]->R2, S0->R2, zS_row_R2);
+            mzd_free(zS_row_R2);
+            
+            // R3: zS_R3의 (i-1)번째 row를 추출
+            mzd_t* zS_row_R3 = mzd_init_window(zS_R3, i-1, 0, i, 23);
+            mzd_add(S_states[i]->R3, S0->R3, zS_row_R3);
+            mzd_free(zS_row_R3);
+            
+            // R4: zS_R4의 (i-1)번째 row를 추출
+            mzd_t* zS_row_R4 = mzd_init_window(zS_R4, i-1, 0, i, 17);
+            mzd_add(S_states[i]->R4, S0->R4, zS_row_R4);
+            mzd_free(zS_row_R4);
+        }
+        
+        // LSB 정규화 (별도 함수)
+        normalize_lsb(S_states[i]);
+    }
 }
 
 // m4ri 기반 keystream 생성 함수 (검증된 함수들 재사용)

@@ -2,7 +2,6 @@
 #include <string.h>
 #include <math.h>
 #include <m4ri/m4ri.h>
-#include "my_encrypt.h"
 
 // Fallback for __builtin_parity if not available
 #ifndef __builtin_parity
@@ -833,7 +832,7 @@ void crypto_performance_print(const crypto_performance_t* perf) {
     printf("  CPU Time: %.3f seconds\n", perf->cpu_time);
     printf("  Memory Used: %zu bytes\n", perf->memory_used);
     printf("  Operations Count: %d\n", perf->operations_count);
-}
+} 
 
 // m4ri 기반 평문 인코딩 함수 (plaintext -> e 벡터)
 void encode_plaintext_m4ri(const char* plaintext, int* e, int num_blocks, const int* Gt) {
