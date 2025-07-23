@@ -88,7 +88,6 @@ enum keySize
 #define defined_expandedKeySize 176
 #define AES_SIZE_64 2
 #define BENCH_COUNT 5000
-#define BENCH_BLOCKS 100000
 
 // aes encryption
 void expandKey(uint8_t *expandedKey, uint8_t *key, enum keySize, size_t expandedKeySize);
@@ -125,10 +124,6 @@ void aes128_key_expansion(uint8_t *key, __m128i *round_keys);
 // 갈루아 곱 최적화
 void GF_acc_mul(const uint64_t* a, const uint64_t* b, uint64_t* c);
 void poly64_acc_mul(uint64_t a, uint64_t b, uint64_t *c);
-
-// 테스트 벡터와 벤치마크
-void test();
-void benchmark(const uint64_t* input, uint64_t* key, uint64_t* output);
 
 //확장 보조 함수
 __m128i key_expansion_step(__m128i key, __m128i keygened){
@@ -246,44 +241,6 @@ int8_t aes_intel_encrypt(uint8_t *input,
 
 
     return SUCCESS;
-}
-
-//테스트 벡터와 벤치마크
-void test(){
-    uint64_t input[AES_SIZE_64*4]=  {0x2C95BE227436F55C, 0x3934846C46377D53, 0x6627817850433865, 0x3E3EEADB7F545B4B, 0x6B5C9437034BD64F, 0x05AC8F4E215CDC71, 0x35EE330344C84AF5, 0x74A31565301EED6B};
-    uint64_t key[2] = {0x592E744D6716A18A, 0x6952DFC81D2C6487};
-    uint64_t output[4] ={0,};
-    uint64_t hash_output[4] = {0xf2a1e205e9cf89a4, 0x7d54c37ceeace92f, 0x13941ffaf64a8f5a, 0x55a65473aacbf41c};
-
-    new_keyed_hash(input, key, output);
-
-    for(int i=0; i < 4; i++){
-        if(output[i] == hash_output[i]){
-            printf("Hash Output matched!\n");
-            printf("encrypted result : 0x%016llx\n", output[i]);
-            printf("expected output : 0x%016llx\n\n", hash_output[i]);
-        } else {
-            printf("FAIL! Hash Output Mismatched at index %d\n", i);
-            printf("Expected : 0x%016llx\n", hash_output[i]);
-            printf("Got : 0x%016llx\n\n", output[i]);
-        }
-    }
-}
-
-void benchmark(const uint64_t* input, uint64_t* key, uint64_t* output){
-    struct timespec start,end;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
-    for(int i=0; i < BENCH_BLOCKS; i++){
-        new_keyed_hash(input, key, output);
-    }
-
-    clock_gettime(CLOCK_MONOTONIC, &end);
-
-    double elapsed = (end.tv_sec - start.tv_sec)
-    + (end.tv_nsec - start.tv_nsec) / 1e9;
-
-    printf("Elapsed: %f sec, %.2f MB/s\n", elapsed, (BENCH_BLOCKS * 16) / (1024.0 * 1024.0) / elapsed);
 }
 
 uint8_t getSBoxValue(uint8_t num)
@@ -828,12 +785,6 @@ int32_t main(int32_t argc, int8_t *argv[])
        
     compare_two_hash(hash_output, test3_hash_output);
     printf("CPU cycles used: %" PRId64 "\n", cycles);
-
-    //벤치마크 테스트(메인 이후에 첨가했음. 재문의시 수정되면 이 밑의 블록은 옮겨놓을 것.)
-    test();
-    benchmark(test1_plaintext_input, test1_key_input, hash_output);
-    benchmark(test2_plaintext_input, test2_key_input, hash_output);
-    benchmark(test3_plaintext_input, test3_key_input, hash_output);
 
     return 0;
 }
