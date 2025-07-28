@@ -184,11 +184,9 @@ int8_t aes_intel_encrypt(uint8_t *input, uint8_t *output, uint8_t *key){
     uint8_t block[16];
 
     // AES-NI round keys
-    // 일반적으로 AES-128은 11개
     __m128i round_keys[11];
 
     // set the number of rounds
-    // AES-128에서의 라운드 수는 10라운드
     nbrRounds = 10;
 
     // 인풋을 block으로 복사
@@ -211,8 +209,6 @@ int8_t aes_intel_encrypt(uint8_t *input, uint8_t *output, uint8_t *key){
 
     // 마지막 라운드
     s = _mm_aesenclast_si128(s, round_keys[nbrRounds]);
-
-    //Final ROund
     _mm_storeu_si128((__m128i*)block, s);
 
     // block을 아웃풋으로 복사
